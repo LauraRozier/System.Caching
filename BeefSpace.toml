@@ -1,0 +1,5 @@
+FileVersion = 1
+Projects = {"System.Caching" = {Path = "."}, test_app = {Path = "./_test_app"}}
+
+[Workspace]
+StartupProject = "test_app"

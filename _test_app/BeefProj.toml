@@ -1,0 +1,6 @@
+FileVersion = 1
+Dependencies = {corlib = "*", "System.Caching" = "*"}
+
+[Project]
+Name = "test_app"
+StartupObject = "test_app.Program"
