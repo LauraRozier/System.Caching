@@ -6,7 +6,7 @@ using System.Threading;
 
 namespace System.Caching
 {
-	enum EntryState : uint8
+	public enum EntryState : uint8
 	{
 		NotInCache,
 		AddingToCache,
@@ -14,6 +14,18 @@ namespace System.Caching
 		RemovingFromCache = 4,
 		RemovedFromCache = 8,
 		Closed = 16
+	}
+
+	public struct ExistingEntry
+	{
+		public EntryState State = .NotInCache;
+		public Object Value = null;
+
+		public this(EntryState state, Object value)
+		{
+			State = state;
+			Value = value;
+		}
 	}
 
 	[Ordered, CRepr]

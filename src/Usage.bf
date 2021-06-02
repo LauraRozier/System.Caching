@@ -24,7 +24,7 @@ namespace System.Caching
 
 	struct UsagePage
 	{
-		public UsageEntry[] Entries;
+		public UsageEntry[] Entries = null;
 		public int NextPage;
 		public int PreviousPage;
 	}
@@ -101,7 +101,7 @@ namespace System.Caching
 
 		private CacheUsage _cacheUsage;
 		private uint8 _bucket;
-		private UsagePage[] _pages;
+		private UsagePage[] _pages ~ DeletePageAndEntries!(_);
 		private int _cEntriesInUse;
 		private int _cPagesInUse;
 		private int _cEntriesInFlush;
@@ -114,6 +114,18 @@ namespace System.Caching
 		private bool _blockReduce;
 		private readonly Monitor _lock = new Monitor() ~ delete _;
 
+		mixin DeletePageAndEntries(var pages)
+		{
+			if (pages != null)
+			{
+				for (var page in pages)
+					if (page.Entries != null)
+						DeleteAndNullify!(page.Entries);
+				
+				DeleteAndNullify!(pages);
+			}
+		}
+
 		public this(CacheUsage cacheUsage, uint8 bucket)
 		{
 			_cacheUsage = cacheUsage;
@@ -123,7 +135,7 @@ namespace System.Caching
 
 		private void InitZeroPages()
 		{
-			_pages = null;
+			DeletePageAndEntries!(_pages);
 			_minEntriesInUse = -1;
 			_freePageList.Head = -1;
 			_freePageList.Tail = -1;
@@ -190,7 +202,7 @@ namespace System.Caching
 		{
 			RemoveFromList(pageIndex, ref _freeEntryList);
 			AddToListHead(pageIndex, ref _freePageList);
-			_pages[pageIndex].Entries = null;
+			DeleteAndNullify!(_pages[pageIndex].Entries);
 			_cPagesInUse--;
 
 			if (_cPagesInUse == 0)
@@ -263,6 +275,8 @@ namespace System.Caching
 				pages[pages.Count - 1].NextPage = -1;
 				_freePageList.Head = pageCount;
 				_freePageList.Tail = pages.Count - 1;
+
+				DeletePageAndEntries!(_pages);
 				_pages = pages;
 			}
 

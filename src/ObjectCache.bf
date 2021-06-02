@@ -21,7 +21,7 @@ namespace System.Caching
 		CacheRegions = 0x80
 	}
 
-	public abstract class ObjectCache : IEnumerable<(String key, Object value)>
+	public abstract class ObjectCache : IEnumerable<(String key, ExistingEntry value)>
 	{
 		private static IServiceProvider _host;
 
@@ -46,32 +46,33 @@ namespace System.Caching
 		public abstract String Name { get; }
 
 		//Default indexer property
-		public abstract Object this[String key] { get; set; }
+		public abstract ExistingEntry this[String key] { get; set; }
 
 		public abstract CacheEntryChangeMonitor CreateCacheEntryChangeMonitor(IEnumerator<String> keys);
 
-		public abstract IEnumerator<(String key, Object value)> GetEnumerator();
+		public abstract IEnumerator<(String key, ExistingEntry value)> GetEnumerator();
 
 		//Existence check for a single item
 		public abstract bool Contains(String key);
 
 		//The Add overloads are for adding an item without requiring the existing item to be returned.  This was
 		// requested for Velocity.
-		public virtual bool Add(String key, Object value, DateTimeOffset absoluteExpiration) =>
-			AddOrGetExisting(key, value, absoluteExpiration) == null;
+		public virtual bool Add(String key, Object value, DateTimeOffset absoluteExpiration, bool deleteValueIfExists) =>
+			AddOrGetExisting(key, value, absoluteExpiration, deleteValueIfExists) == default(ExistingEntry);
 
-		public virtual bool Add(CacheItem item, CacheItemPolicy policy) => AddOrGetExisting(item, policy) == null;
+		public virtual bool Add(CacheItem item, CacheItemPolicy policy, bool deleteValueIfExists) =>
+			AddOrGetExisting(item, policy, deleteValueIfExists) == default;
 
-		public virtual bool Add(String key, Object value, CacheItemPolicy policy) =>
-			AddOrGetExisting(key, value, policy) == null;
+		public virtual bool Add(String key, Object value, CacheItemPolicy policy, bool deleteValueIfExists) =>
+			AddOrGetExisting(key, value, policy, deleteValueIfExists) == default(ExistingEntry);
 
-		public abstract Object AddOrGetExisting(String key, Object value, DateTimeOffset absoluteExpiration);
+		public abstract ExistingEntry AddOrGetExisting(String key, Object value, DateTimeOffset absoluteExpiration, bool deleteValueIfExists);
 
-		public abstract CacheItem AddOrGetExisting(CacheItem value, CacheItemPolicy policy);
+		public abstract CacheItem AddOrGetExisting(CacheItem value, CacheItemPolicy policy, bool deleteValueIfExists);
 
-		public abstract Object AddOrGetExisting(String key, Object value, CacheItemPolicy policy);
+		public abstract ExistingEntry AddOrGetExisting(String key, Object value, CacheItemPolicy policy, bool deleteValueIfExists);
 
-		public abstract Object Get(String key);
+		public abstract ExistingEntry Get(String key);
 
 		public abstract CacheItem GetCacheItem(String key);
 

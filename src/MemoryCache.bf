@@ -103,7 +103,7 @@ namespace System.Caching
 			get { return _usage; }
 		}
 
-		public MemoryCacheEntry AddOrGetExisting(String key, MemoryCacheEntry entry)
+		public MemoryCacheEntry AddOrGetExisting(String key, MemoryCacheEntry entry, bool deleteValueIfExists)
 		{
 			if (_useInsertBlock && entry.HasUsage())
 				WaitInsertBlock();
@@ -136,12 +136,19 @@ namespace System.Caching
 						added = true;
 						_entries[key] = entry;
 					}
+					else
+					{
+						if (deleteValueIfExists)
+							delete entry.Value;
+
+						delete entry;
+					}
 				}
 
 				RemoveFromCache(toBeReleasedEntry, .Expired, true);
 			}
 
-			if (added)// add outside of lock
+			if (added) // add outside of lock
 				AddToCache(entry);
 
 			// update outside of lock
@@ -164,7 +171,7 @@ namespace System.Caching
 			_useInsertBlock = true;
 		}
 
-		public void CopyTo(ref Dictionary<String, Object> h)
+		public void CopyTo(ref Dictionary<String, ExistingEntry> h)
 		{
 			using (_entriesLock.Enter())
 			{
@@ -175,7 +182,7 @@ namespace System.Caching
 						MemoryCacheEntry entry = e.value;
 
 						if (entry.UtcAbsExp > DateTime.UtcNow)
-							h[e.key] = entry.Value;
+							h[e.key] = ExistingEntry(entry.State, entry.Value);
 					}
 				}
 			}
@@ -365,7 +372,7 @@ namespace System.Caching
 
 	class MemoryCacheEntry
 	{
-		private String _key;// ~ if (_.IsDynAlloc) delete _;
+		private String _key ~ if (_.IsDynAlloc) delete _;
 		private Object _value;
 		private DateTime _utcCreated;
 		private int _state;
@@ -377,8 +384,8 @@ namespace System.Caching
 		private UsageEntryRef _usageEntryRef;
 		private DateTime _utcLastUpdateUsage;
 		private CacheEntryRemovedCallback _callback;
-		private MemoryCacheEntry.SeldomUsedFields _fields;// ~ delete _;
-		private readonly Monitor _lock = new .();// ~ delete _;
+		private MemoryCacheEntry.SeldomUsedFields _fields ~ delete _;
+		private readonly Monitor _lock = new .() ~ delete _;
 
 		private class SeldomUsedFields
 		{
@@ -495,15 +502,6 @@ namespace System.Caching
 				_fields._dependencies = dependencies;
 				_fields._cache = cache;
 			}
-		}
-
-		public ~this()
-		{
-			if (_key.IsDynAlloc)
-				delete _key;
-
-			delete _fields;
-			delete _lock;
 		}
 
 		public void AddDependent(MemoryCache cache, MemoryCacheEntryChangeMonitor dependent)
@@ -653,7 +651,7 @@ namespace System.Caching
 			new MemoryCacheEntry(new .(_key), _value, _utcAbsExp, _slidingExp, _priority, _dependencies, _removedCallback, _cache);*/
 	}
 
-	public class MemoryCache : ObjectCache, IEnumerable<(String key, Object value)>, IDisposable
+	public class MemoryCache : ObjectCache, IEnumerable<(String key, ExistingEntry value)>, IDisposable
 	{
 		private const DefaultCacheCapabilities CAPABILITIES = .InMemoryProvider
 			| .CacheEntryChangeMonitors
@@ -903,7 +901,7 @@ namespace System.Caching
 			_stats = new .(this);
 		}
 
-		private Object AddOrGetExistingInternal(String key, Object value, CacheItemPolicy policy)
+		private ExistingEntry AddOrGetExistingInternal(String key, Object value, CacheItemPolicy policy, bool deleteValueIfExists)
 		{
 			Runtime.Assert(key != null);
 			DateTimeOffset absExp = ObjectCache.InfiniteAbsoluteExpiration;
@@ -931,11 +929,13 @@ namespace System.Caching
 						if (monitor != null)
 							monitor.Dispose();
 
-				return null;
+				return default(ExistingEntry);
 			}
 
-			MemoryCacheEntry entry = GetStore(key).AddOrGetExisting(key, new .(key, value, absExp, slidingExp, priority, changeMonitors, removedCallback, this));
-			return (entry != null) ? entry.Value : null;
+			MemoryCacheEntry entry = GetStore(key).AddOrGetExisting(
+				key, new .(key, value, absExp, slidingExp, priority, changeMonitors, removedCallback, this), deleteValueIfExists
+			);
+			return (entry != null) ? ExistingEntry(entry.State, entry.Value) : default(ExistingEntry);
 		}
 
 		public override CacheEntryChangeMonitor CreateCacheEntryChangeMonitor(IEnumerator<String> keys)
@@ -971,11 +971,11 @@ namespace System.Caching
 			}
 		}
 
-		private Object GetInternal(String key)
+		private ExistingEntry GetInternal(String key)
 		{
 			Runtime.Assert(key != null);
 			MemoryCacheEntry entry = GetEntry(key);
-			return (entry != null) ? entry.Value : null;
+			return (entry != null) ? ExistingEntry(entry.State, entry.Value) : default(ExistingEntry);
 		}
 
 		public MemoryCacheEntry GetEntry(String key)
@@ -986,9 +986,9 @@ namespace System.Caching
 			return GetStore(key).Get(key);
 		}
 
-		public override IEnumerator<(String key, Object value)> GetEnumerator()
+		public override IEnumerator<(String key, ExistingEntry value)> GetEnumerator()
 		{
-			Dictionary<String, Object> h = new .();
+			Dictionary<String, ExistingEntry> h = new .();
 
 			if (!IsDisposed)
 				for (var storeRef in _storeRefs)
@@ -1017,7 +1017,7 @@ namespace System.Caching
 		}
 
 		/// Default indexer property
-		public override Object this[String key]
+		public override ExistingEntry this[String key]
 		{
 			get { return GetInternal(key); }
 			set { Set(key, value, .InfiniteAbsoluteExpiration); }
@@ -1025,32 +1025,32 @@ namespace System.Caching
 
 		/// Existence check for a single item
 		public override bool Contains(String key) =>
-			GetInternal(key) != null;
+			GetInternal(key) != default(ExistingEntry);
 
 		/// Breaking bug in System.RuntimeCaching.MemoryCache.AddOrGetExisting (CacheItem, CacheItemPolicy)
-		public override bool Add(CacheItem item, CacheItemPolicy policy)
+		public override bool Add(CacheItem item, CacheItemPolicy policy, bool deleteValueIfExists)
 		{
-			CacheItem existingEntry = AddOrGetExisting(item, policy);
+			CacheItem existingEntry = AddOrGetExisting(item, policy, deleteValueIfExists);
 			return (existingEntry == null || existingEntry.Value == null);
 		}
 
-		public override Object AddOrGetExisting(String key, Object value, DateTimeOffset absoluteExpiration)
+		public override ExistingEntry AddOrGetExisting(String key, Object value, DateTimeOffset absoluteExpiration, bool deleteValueIfExists)
 		{
 			CacheItemPolicy policy = new .();
 			policy.AbsoluteExpiration = absoluteExpiration;
-			return AddOrGetExistingInternal(key, value, policy);
+			return AddOrGetExistingInternal(key, value, policy, deleteValueIfExists);
 		}
 
-		public override CacheItem AddOrGetExisting(CacheItem item, CacheItemPolicy policy)
+		public override CacheItem AddOrGetExisting(CacheItem item, CacheItemPolicy policy, bool deleteValueIfExists)
 		{
 			Runtime.Assert(item != null);
-			return new CacheItem(item.Key, AddOrGetExistingInternal(item.Key, item.Value, policy));
+			return new CacheItem(item.Key, AddOrGetExistingInternal(item.Key, item.Value, policy, deleteValueIfExists));
 		}
 
-		public override Object AddOrGetExisting(String key, Object value, CacheItemPolicy policy) =>
-			AddOrGetExistingInternal(key, value, policy);
+		public override ExistingEntry AddOrGetExisting(String key, Object value, CacheItemPolicy policy, bool deleteValueIfExists) =>
+			AddOrGetExistingInternal(key, value, policy, deleteValueIfExists);
 
-		public override Object Get(String key) =>
+		public override ExistingEntry Get(String key) =>
 			GetInternal(key);
 
 		public override CacheItem GetCacheItem(String key)
