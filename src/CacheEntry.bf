@@ -12,7 +12,8 @@ namespace System.Caching
 		Expired,
 		Evicted,               // Evicted to free up space
 		ChangeMonitorChanged,  // An associated programmatic dependency triggered eviction
-		CacheSpecificEviction  // Catch-all for custom providers
+		CacheSpecificEviction, // Catch-all for custom providers
+		Disposing
 	}
 
 	public delegate void CacheEntryRemovedCallback(CacheEntryRemovedArguments arguments);

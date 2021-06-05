@@ -16,10 +16,10 @@ namespace System.Caching
 	{
 		private DateTimeOffset _absExpiry;
 		private TimeSpan _sldExpiry;
-		private List<ChangeMonitor> _changeMonitors;
+		private List<ChangeMonitor> _changeMonitors ~ DeleteAndNullify!(_);
 		private CacheItemPriority _priority;
-		private CacheEntryRemovedCallback _removedCallback;
-		private CacheEntryUpdateCallback _updateCallback;
+		private CacheEntryRemovedCallback _removedCallback ~ DeleteAndNullify!(_);
+		private CacheEntryUpdateCallback _updateCallback ~ DeleteAndNullify!(_);
 
 		public DateTimeOffset AbsoluteExpiration
 		{

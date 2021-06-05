@@ -58,13 +58,13 @@ namespace System.Caching
 		//The Add overloads are for adding an item without requiring the existing item to be returned.  This was
 		// requested for Velocity.
 		public virtual bool Add(String key, Object value, DateTimeOffset absoluteExpiration, bool deleteValueIfExists) =>
-			AddOrGetExisting(key, value, absoluteExpiration, deleteValueIfExists) == default(ExistingEntry);
+			AddOrGetExisting(key, value, absoluteExpiration, deleteValueIfExists) == default;
 
 		public virtual bool Add(CacheItem item, CacheItemPolicy policy, bool deleteValueIfExists) =>
 			AddOrGetExisting(item, policy, deleteValueIfExists) == default;
 
 		public virtual bool Add(String key, Object value, CacheItemPolicy policy, bool deleteValueIfExists) =>
-			AddOrGetExisting(key, value, policy, deleteValueIfExists) == default(ExistingEntry);
+			AddOrGetExisting(key, value, policy, deleteValueIfExists) == default;
 
 		public abstract ExistingEntry AddOrGetExisting(String key, Object value, DateTimeOffset absoluteExpiration, bool deleteValueIfExists);
 
@@ -86,7 +86,7 @@ namespace System.Caching
 		public abstract Dictionary<String, Object> GetValues(List<String> keys);
 
 		public virtual Dictionary<String, Object> GetValues(params String[] keys) =>
-			GetValues(scope List<String>(keys.GetEnumerator()));
+			GetValues(scope .(keys.GetEnumerator()));
 
 		public abstract Object Remove(String key);
 

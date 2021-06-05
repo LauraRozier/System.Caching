@@ -12,15 +12,15 @@ namespace System.Caching
 {
 	sealed class MemoryCacheStore : IDisposable
 	{
-		const int INSERT_BLOCK_WAIT = 10000;
-		const int MAX_COUNT = Int32.MaxValue / 2;
+		private const int INSERT_BLOCK_WAIT = 10000;
+		private const int MAX_COUNT = Int32.MaxValue / 2;
 
-		private Dictionary<String, MemoryCacheEntry> _entries = new .() ~ DeleteDictionaryAndValues!(_);
-		private readonly Monitor _entriesLock = new .() ~ delete _;
-		private CacheExpires _expires = new .(this) ~ delete _;
+		private Dictionary<String, MemoryCacheEntry> _entries = new .();
+		private Monitor _entriesLock = new .();
+		private CacheExpires _expires = new .(this);
 		private CacheUsage _usage = new .(this);
 		private uint8 _disposed;
-		private WaitEvent _insertBlock = new .(true) ~ delete _;
+		private WaitEvent _insertBlock = new .(true);
 		private volatile bool _useInsertBlock;
 		private MemoryCache _cache;
 
@@ -36,7 +36,7 @@ namespace System.Caching
 			if (entry == null)
 				return;
 			
-			MemoryCacheEntry newEntry = entry;//.Clone();
+			MemoryCacheEntry newEntry = entry;
 
 			if (newEntry.HasExpiration())
 				_expires.Add(newEntry);
@@ -105,6 +105,8 @@ namespace System.Caching
 
 		public MemoryCacheEntry AddOrGetExisting(String key, MemoryCacheEntry entry, bool deleteValueIfExists)
 		{
+			var entry;
+
 			if (_useInsertBlock && entry.HasUsage())
 				WaitInsertBlock();
 
@@ -141,7 +143,7 @@ namespace System.Caching
 						if (deleteValueIfExists)
 							delete entry.Value;
 
-						delete entry;
+						DeleteAndNullify!(entry);
 					}
 				}
 
@@ -159,7 +161,7 @@ namespace System.Caching
 			if (toBeReleasedEntry != null)
 			{
 				toBeReleasedEntry.Release(_cache, .Expired);
-				delete toBeReleasedEntry;
+				DeleteAndNullify!(toBeReleasedEntry);
 			}
 
 			return existingEntry;
@@ -174,18 +176,10 @@ namespace System.Caching
 		public void CopyTo(ref Dictionary<String, ExistingEntry> h)
 		{
 			using (_entriesLock.Enter())
-			{
 				if (_disposed == 0)
-				{
 					for (let e in _entries)
-					{
-						MemoryCacheEntry entry = e.value;
-
-						if (entry.UtcAbsExp > DateTime.UtcNow)
-							h[e.key] = ExistingEntry(entry.State, entry.Value);
-					}
-				}
-			}
+						if (e.value.UtcAbsExp > DateTime.UtcNow)
+							h[e.key] = .(e.value.State, e.value.Value);
 		}
 
 		public int Count
@@ -200,7 +194,7 @@ namespace System.Caching
 				// disable CacheExpires timer
 				_expires.EnableExpirationTimer(false);
 				// build array list of entries
-				List<MemoryCacheEntry> entries = new .(_entries.Count);
+				List<MemoryCacheEntry> entries = scope .(_entries.Count);
 
 				using (_entriesLock.Enter())
 				{
@@ -220,14 +214,24 @@ namespace System.Caching
 				// release entries outside of lock
 				for (var entry in entries)
 				{
-					RemoveFromCache(entry, .CacheSpecificEviction);
-					delete entry;
+					RemoveFromCache(entry, .Disposing);
+					Object val = entry.Value;
+
+					if (val != null)
+						DeleteAndNullify!(val);
+
+					DeleteAndNullify!(entry);
 				}
+
+				DeleteAndNullify!(_entries);
+				DeleteAndNullify!(_entriesLock);
+				DeleteAndNullify!(_expires);
+				DeleteAndNullify!(_usage);
 
 				// MemoryCacheStatistics has been disposed, and therefore nobody should be using _insertBlock except for
 				// potential threads in WaitInsertBlock (which won't care if we call Close).
 				Runtime.Assert(_useInsertBlock == false);
-				delete _insertBlock;
+				DeleteAndNullify!(_insertBlock);
 			}
 		}
 
@@ -252,9 +256,7 @@ namespace System.Caching
 			MemoryCacheEntry entry = null;
 
 			using (_entriesLock.Enter())
-			{
 				if (_disposed == 0)
-				{
 					if (_entries.ContainsKey(key))
 					{
 						// get current entry
@@ -274,8 +276,6 @@ namespace System.Caching
 							entry = null;
 						}
 					}
-				}
-			}
 
 			// release outside of lock
 			RemoveFromCache(entry, reason);
@@ -291,7 +291,6 @@ namespace System.Caching
 			bool added = false;
 
 			using (_entriesLock.Enter())
-			{
 				if (_disposed == 0)
 				{
 					existingEntry = _entries[key];
@@ -303,7 +302,6 @@ namespace System.Caching
 					added = true;
 					_entries[key] = entry;
 				}
-			}
 
 			CacheEntryRemovedReason reason = .Removed;
 
@@ -323,7 +321,7 @@ namespace System.Caching
 			if (existingEntry != null)
 			{
 				existingEntry.Release(_cache, reason);
-				delete existingEntry;
+				DeleteAndNullify!(existingEntry);
 			}
 		}
 
@@ -370,7 +368,7 @@ namespace System.Caching
 		}
 	}
 
-	class MemoryCacheEntry
+	sealed class MemoryCacheEntry
 	{
 		private String _key ~ if (_.IsDynAlloc) delete _;
 		private Object _value;
@@ -471,29 +469,11 @@ namespace System.Caching
 			_key = key;
 			_value = value;
 			_slidingExp = slidingExp;
-
-			if (_slidingExp > TimeSpan.Zero)
-			{
-				_utcAbsExp = _utcCreated + _slidingExp;
-			}
-			else
-			{
-				_utcAbsExp = absExp.UtcDateTime;
-			}
-
+			_utcAbsExp = _slidingExp > TimeSpan.Zero ? _utcCreated + _slidingExp : absExp.UtcDateTime;
 			_expiresEntryRef = ExpiresEntryRef.INVALID;
 			_expiresBucket = uint8.MaxValue;
 			_usageEntryRef = UsageEntryRef.INVALID;
-
-			if (priority == .NotRemovable)
-			{
-				_usageBucket = uint8.MaxValue;
-			}
-			else
-			{
-				_usageBucket = 0;
-			}
-
+			_usageBucket = priority == .NotRemovable ? uint8.MaxValue : 0;
 			_callback = removedCallback;
 
 			if (dependencies != null)
@@ -507,7 +487,6 @@ namespace System.Caching
 		public void AddDependent(MemoryCache cache, MemoryCacheEntryChangeMonitor dependent)
 		{
 			using (_lock.Enter())
-			{
 				if (State <= .AddedToCache)
 				{
 					if (_fields == null)
@@ -521,25 +500,21 @@ namespace System.Caching
 
 					_fields._dependents[dependent] = dependent;
 				}
-			}
 		}
 
 		private void CallCacheEntryRemovedCallback(MemoryCache cache, CacheEntryRemovedReason reason)
 		{
-			if (_callback == null)
+			if (_callback == null || reason == .Disposing)
 				return;
 
-			CacheEntryRemovedArguments arguments = scope .(cache, reason, new .(_key, _value));
-			_callback(arguments);
+			_callback(scope .(cache, reason, new .(_key, _value)));
 		}
 
 		public void CallNotifyOnChanged()
 		{
 			if (_fields != null && _fields._dependencies != null)
-			{
 				for (let changeMonitor in _fields._dependencies)
 					changeMonitor.NotifyOnChanged(new => OnDependencyChanged);
-			}
 		}
 
 		public bool CompareExchangeState(EntryState value, EntryState comparand) =>
@@ -574,26 +549,18 @@ namespace System.Caching
 			IEnumerator<MemoryCacheEntryChangeMonitor> keyCollection = null;
 
 			using (_lock.Enter())
-			{
 				if (_fields != null && _fields._dependents != null && _fields._dependents.Count > 0)
 				{
 					keyCollection = _fields._dependents.Keys;
 					_fields._dependents = null;
 				}
-			}
 
 			if (keyCollection != null)
-			{
-				for (MemoryCacheEntryChangeMonitor memoryCacheEntryChangeMonitor in keyCollection)
+				for (let memoryCacheEntryChangeMonitor in keyCollection)
 					if (memoryCacheEntryChangeMonitor != null)
 						memoryCacheEntryChangeMonitor.OnCacheEntryReleased();
-			}
 
 			CallCacheEntryRemovedCallback(cache, reason);
-
-			if (_fields != null && _fields._dependencies != null)
-				for (ChangeMonitor changeMonitor in _fields._dependencies)
-					changeMonitor.Dispose();
 		}
 
 		public void RemoveDependent(MemoryCacheEntryChangeMonitor dependent)
@@ -631,24 +598,19 @@ namespace System.Caching
 				usage.Update(this);
 
 				if (_fields != null && _fields._dependencies != null)
-				{
-					for (ChangeMonitor changeMonitor in _fields._dependencies)
+					for (let changeMonitor in _fields._dependencies)
 					{
 						MemoryCacheEntryChangeMonitor memoryCacheEntryChangeMonitor = (MemoryCacheEntryChangeMonitor)changeMonitor;
 
 						if (memoryCacheEntryChangeMonitor != null)
-							for (MemoryCacheEntry memoryCacheEntry in memoryCacheEntryChangeMonitor.Dependencies)
+							for (let memoryCacheEntry in memoryCacheEntryChangeMonitor.Dependencies)
 							{
 								MemoryCacheStore store = memoryCacheEntry._fields._cache.GetStore(memoryCacheEntry.Key);
 								memoryCacheEntry.UpdateUsage(utcNow, store.Usage);
 							}
 					}
-				}
 			}
 		}
-
-		/*public MemoryCacheEntry Clone() =>
-			new MemoryCacheEntry(new .(_key), _value, _utcAbsExp, _slidingExp, _priority, _dependencies, _removedCallback, _cache);*/
 	}
 
 	public class MemoryCache : ObjectCache, IEnumerable<(String key, ExistingEntry value)>, IDisposable
@@ -660,9 +622,9 @@ namespace System.Caching
 			| .CacheEntryUpdateCallback
 			| .CacheEntryRemovedCallback;
 		private static readonly TimeSpan OneYear = TimeSpan(365, 0, 0, 0, 0);
-		private static Monitor s_initLock = new .() ~ delete _;
-		private static MemoryCache s_defaultCache;
-		private static CacheEntryRemovedCallback s_sentinelRemovedCallback = new => SentinelEntry.OnCacheEntryRemovedCallback;
+		private static Monitor s_initLock = new .() ~ DeleteAndNullify!(_);
+		private static MemoryCache s_defaultCache ~ { _.Dispose(); DeleteAndNullify!(_); };
+		private static CacheEntryRemovedCallback s_sentinelRemovedCallback = new => SentinelEntry.OnCacheEntryRemovedCallback ~ DeleteAndNullify!(_);
 		private MemoryCacheStore[] _storeRefs;
 		private int _storeCount;
 		private int _disposed;
@@ -718,16 +680,12 @@ namespace System.Caching
 				List<ChangeMonitor> changeMonitors = policy.ChangeMonitors;
 
 				if (changeMonitors != null)
-				{
 					for (let monitor in changeMonitors)
-					{
 						if (monitor != null && monitor.HasChanged)
 						{
 							hasChanged = true;
 							break;
 						}
-					}
-				}
 
 				// if the monitors haven't changed yet and we have an update callback then the policy is valid
 				if (!hasChanged && policy.UpdateCallback != null)
@@ -735,13 +693,12 @@ namespace System.Caching
 
 				// if the monitors have changed we need to dispose them
 				if (hasChanged)
-				{
-					for (let monitor in changeMonitors)
-					{
+					for (var monitor in changeMonitors)
 						if (monitor != null)
+						{
 							monitor.Dispose();
-					}
-				}
+							DeleteAndNullify!(monitor);
+						}
 
 				return false;
 			}
@@ -827,14 +784,9 @@ namespace System.Caching
 		{
 			get
 			{
-				if (s_defaultCache == null)
-				{
-					using (s_initLock.Enter())
-					{
-						if (s_defaultCache == null)
-							s_defaultCache = new .();
-					}
-				}
+				using (s_initLock.Enter())
+					if (s_defaultCache == null)
+						s_defaultCache = new .();
 
 				return s_defaultCache;
 			}
@@ -925,17 +877,20 @@ namespace System.Caching
 			if (IsDisposed)
 			{
 				if (changeMonitors != null)
-					for (ChangeMonitor monitor in changeMonitors)
+					for (var monitor in changeMonitors)
 						if (monitor != null)
+						{
 							monitor.Dispose();
+							DeleteAndNullify!(monitor);
+						}
 
-				return default(ExistingEntry);
+				return default;
 			}
 
 			MemoryCacheEntry entry = GetStore(key).AddOrGetExisting(
 				key, new .(key, value, absExp, slidingExp, priority, changeMonitors, removedCallback, this), deleteValueIfExists
 			);
-			return (entry != null) ? ExistingEntry(entry.State, entry.Value) : default(ExistingEntry);
+			return entry != null ? .(entry.State, entry.Value) : default;
 		}
 
 		public override CacheEntryChangeMonitor CreateCacheEntryChangeMonitor(IEnumerator<String> keys)
@@ -956,18 +911,25 @@ namespace System.Caching
 			{
 				// stats must be disposed prior to disposing the stores.
 				if (_stats != null)
+				{
 					_stats.Dispose();
+					DeleteAndNullify!(_stats);
+				}
 
 				if (_storeRefs != null)
 				{
 					for (var storeRef in _storeRefs)
-					{
 						if (storeRef != null)
+						{
 							storeRef.Dispose();
-					}
+							DeleteAndNullify!(storeRef);
+						}
 
-					delete _storeRefs;
+					DeleteAndNullify!(_storeRefs);
 				}
+
+				if (_name != null && _name.IsDynAlloc)
+					DeleteAndNullify!(_name);
 			}
 		}
 
@@ -975,7 +937,7 @@ namespace System.Caching
 		{
 			Runtime.Assert(key != null);
 			MemoryCacheEntry entry = GetEntry(key);
-			return (entry != null) ? ExistingEntry(entry.State, entry.Value) : default(ExistingEntry);
+			return (entry != null) ? .(entry.State, entry.Value) : default;
 		}
 
 		public MemoryCacheEntry GetEntry(String key)
@@ -1010,7 +972,7 @@ namespace System.Caching
 			int64 trimmed = 0;
 
 			if (_disposed == 0)
-				for (var storeRef in _storeRefs)
+				for (let storeRef in _storeRefs)
 					trimmed += storeRef.TrimInternal(percent);
 
 			return trimmed;
@@ -1025,7 +987,7 @@ namespace System.Caching
 
 		/// Existence check for a single item
 		public override bool Contains(String key) =>
-			GetInternal(key) != default(ExistingEntry);
+			GetInternal(key) != default;
 
 		/// Breaking bug in System.RuntimeCaching.MemoryCache.AddOrGetExisting (CacheItem, CacheItemPolicy)
 		public override bool Add(CacheItem item, CacheItemPolicy policy, bool deleteValueIfExists)
@@ -1044,7 +1006,7 @@ namespace System.Caching
 		public override CacheItem AddOrGetExisting(CacheItem item, CacheItemPolicy policy, bool deleteValueIfExists)
 		{
 			Runtime.Assert(item != null);
-			return new CacheItem(item.Key, AddOrGetExistingInternal(item.Key, item.Value, policy, deleteValueIfExists));
+			return new .(item.Key, AddOrGetExistingInternal(item.Key, item.Value, policy, deleteValueIfExists));
 		}
 
 		public override ExistingEntry AddOrGetExisting(String key, Object value, CacheItemPolicy policy, bool deleteValueIfExists) =>
@@ -1055,8 +1017,8 @@ namespace System.Caching
 
 		public override CacheItem GetCacheItem(String key)
 		{
-			Object value = GetInternal(key);
-			return (value != null) ? new .(key, value) : null;
+			ExistingEntry value = GetInternal(key);
+			return (value != default) ? new .(key, value.Value) : null;
 		}
 
 		public override void Set(String key, Object value, DateTimeOffset absoluteExpiration)
@@ -1101,15 +1063,21 @@ namespace System.Caching
 			if (IsDisposed)
 			{
 				if (changeMonitors != null)
-					for (let monitor in changeMonitors)
+				{
+					for (var monitor in changeMonitors)
 						if (monitor != null)
+						{
 							monitor.Dispose();
+							DeleteAndNullify!(monitor);
+						}
+
+					changeMonitors.Clear();
+				}
 
 				return;
 			}
 
-			MemoryCacheStore store = GetStore(key);
-			store.Set(key, new .(key, value, absExp, slidingExp, priority, changeMonitors, removedCallback, this));
+			GetStore(key).Set(key, new .(key, value, absExp, slidingExp, priority, changeMonitors, removedCallback, this));
 		}
 
 		// Add a an event that fires *before* an item is evicted from the Cache
@@ -1123,9 +1091,12 @@ namespace System.Caching
 			if (IsDisposed)
 			{
 				if (changeMonitors != null)
-					for (let monitor in changeMonitors)
+					for (var monitor in changeMonitors)
 						if (monitor != null)
+						{
 							monitor.Dispose();
+							DeleteAndNullify!(monitor);
+						}
 
 				return;
 			}
@@ -1139,7 +1110,7 @@ namespace System.Caching
 			ChangeMonitor expensiveObjectDep = CreateCacheEntryChangeMonitor(cacheKeys.GetEnumerator());
 
 			if (changeMonitors == null)
-				changeMonitors = new List<ChangeMonitor>();
+				changeMonitors = new .();
 
 			changeMonitors.Add(expensiveObjectDep);
 
@@ -1183,25 +1154,19 @@ namespace System.Caching
 		public override Dictionary<String, Object> GetValues(List<String> keys)
 		{
 			Runtime.Assert(keys != null);
-			Dictionary<String, Object> values = null;
+			Dictionary<String, Object> values = new .();
 
 			if (!IsDisposed)
-			{
 				for (let key in keys)
 				{
 					Runtime.Assert(key != null);
 					Object value = GetInternal(key);
 
 					if (value != null)
-					{
-						if (values == null)
-							values = new Dictionary<String, Object>();
-
 						values[key] = value;
-					}
 				}
-			}
 
+			// We can also just return an empty list :) no need for null
 			return values;
 		}
 	}
@@ -1221,7 +1186,7 @@ namespace System.Caching
 		private DateTime _lastTrimTime;
 		private int _pollingInterval;
 		private PeriodicCallback _timer;
-		private Monitor _timerLock = new .() ~ delete _;
+		private Monitor _timerLock = new .();
 		private int64 _totalCountBeforeTrim;
 		private CacheMemoryMonitor _cacheMemoryMonitor;
 		private MemoryCache _memoryCache;
@@ -1245,11 +1210,11 @@ namespace System.Caching
 					}
 					else if (_cacheMemoryMonitor.PressureLast > _cacheMemoryMonitor.PressureLow / 2 || _physicalMemoryMonitor.PressureLast > _physicalMemoryMonitor.PressureLow / 2)
 					{
-						int num = Math.Min(_configPollingInterval, 30000);
+						int interval = Math.Min(_configPollingInterval, 30000);
 
-						if (_pollingInterval != num)
+						if (_pollingInterval != interval)
 						{
-							_pollingInterval = num;
+							_pollingInterval = interval;
 							_timer.UpdateInterval(_pollingInterval);
 						}
 					}
@@ -1319,13 +1284,9 @@ namespace System.Caching
 			if (Interlocked.Exchange(ref _inCacheManagerThread, 1) != 0)
 				return 0L;
 
-			int64 result;
+			int64 result = 0L;
 
-			if (_disposed == 1)
-			{
-				result = 0L;
-			}
-			else
+			if (_disposed != 1)
 			{
 				Update();
 				AdjustTimer();
@@ -1355,14 +1316,23 @@ namespace System.Caching
 					PeriodicCallback timer = _timer;
 
 					if (timer != null && Interlocked.CompareExchange(ref _timer, null, timer) == timer)
+					{
 						timer.Dispose();
+						DeleteAndNullify!(timer);
+					}
 				}
 
 				while (_inCacheManagerThread != 0)
 					Thread.Sleep(100);
 
 				if (_cacheMemoryMonitor != null)
+				{
 					_cacheMemoryMonitor.Dispose();
+					DeleteAndNullify!(_cacheMemoryMonitor);
+				}
+				
+				DeleteAndNullify!(_physicalMemoryMonitor);
+				DeleteAndNullify!(_timerLock);
 			}
 		}
 	}
@@ -1477,6 +1447,6 @@ namespace System.Caching
 		}
 
 		public void OnCacheEntryReleased() =>
-			base.OnChanged(null);
+			OnChanged(null);
 	}
 }

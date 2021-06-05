@@ -32,7 +32,7 @@ namespace System.Caching
 		protected int _pressureLow;  // low pressure level - slow growth here
 
 		protected int _i0;
-		protected int[] _pressureHist;
+		protected int[] _pressureHist ~ DeleteAndNullify!(_);
 		protected int _pressureTotal;
 
 		private static int64 s_totalPhysical;
@@ -40,13 +40,12 @@ namespace System.Caching
 
 		static this()
 		{
-			NativeMethods.MEMORYSTATUSEX memoryStatusEx = .();
-			memoryStatusEx.Init();
+			MEMORYSTATUSEX mStatEx = MEMORYSTATUSEX.Init();
 
-			if (NativeMethods.GlobalMemoryStatusEx(&memoryStatusEx) != 0)
+			if (NativeMethods.GlobalMemoryStatusEx(&mStatEx) != 0)
 			{
-				s_totalPhysical = memoryStatusEx.ullTotalPhys;
-				s_totalVirtual = memoryStatusEx.ullTotalVirtual;
+				s_totalPhysical = mStatEx.ullTotalPhys;
+				s_totalVirtual = mStatEx.ullTotalVirtual;
 			}
 		}
 
@@ -86,7 +85,7 @@ namespace System.Caching
 		{
 			Runtime.Assert(_pressureHigh > 0 && _pressureLow > 0 && _pressureLow <= _pressureHigh);
 			int pressure = GetCurrentPressure();
-			_pressureHist = new int[HISTORY_COUNT];
+			_pressureHist = new .[HISTORY_COUNT];
 
 			for (int i = 0; i < HISTORY_COUNT; i++)
 			{
@@ -108,10 +107,10 @@ namespace System.Caching
 
 	sealed class CacheMemoryMonitor : MemoryMonitor, IDisposable
 	{
-		const int64 PRIVATE_BYTES_LIMIT_2GB = 800 * MEGABYTE;
-		const int64 PRIVATE_BYTES_LIMIT_3GB = 1800 * MEGABYTE;
-		const int64 PRIVATE_BYTES_LIMIT_64BIT = 1L * TERABYTE;
-		const int SAMPLE_COUNT = 2;
+		private const int64 PRIVATE_BYTES_LIMIT_2GB = 800 * MEGABYTE;
+		private const int64 PRIVATE_BYTES_LIMIT_3GB = 1800 * MEGABYTE;
+		private const int64 PRIVATE_BYTES_LIMIT_64BIT = 1L * TERABYTE;
+		private const int SAMPLE_COUNT = 2;
 
 		private static IMemoryCacheManager s_memoryCacheManager;
 		private static int64 s_autoPrivateBytesLimit = -1;
@@ -134,8 +133,8 @@ namespace System.Caching
 		public this(MemoryCache memoryCache, int cacheMemoryLimitMegabytes)
 		{
 			_memoryCache = memoryCache;
-			_cacheSizeSamples = new int64[SAMPLE_COUNT];
-			_cacheSizeSampleTimes = new DateTime[SAMPLE_COUNT];
+			_cacheSizeSamples = new .[SAMPLE_COUNT];
+			_cacheSizeSampleTimes = new .[SAMPLE_COUNT];
 
 			if (memoryCache.UseMemoryCacheManager)
 				InitMemoryCacheManager(); // This magic thing connects us to ObjectCacheHost magically. :/
@@ -182,18 +181,9 @@ namespace System.Caching
 
 					if (totalPhysical != 0)
 					{
-						int64 recommendedPrivateByteLimit;
-
-						if (is64bit)
-						{
-							recommendedPrivateByteLimit = PRIVATE_BYTES_LIMIT_64BIT;
-						}
-						else
-						{
-							// Figure out if it's 2GB or 3GB
-							recommendedPrivateByteLimit = totalVirtual > 2 * GIGABYTE ? PRIVATE_BYTES_LIMIT_3GB : PRIVATE_BYTES_LIMIT_2GB;
-						}
-
+						int64 recommendedPrivateByteLimit = is64bit
+							? PRIVATE_BYTES_LIMIT_64BIT
+							: totalVirtual > 2 * GIGABYTE ? PRIVATE_BYTES_LIMIT_3GB : PRIVATE_BYTES_LIMIT_2GB; // Figure out if it's 2GB or 3GB
 						// use 60% of physical RAM
 						int64 usableMemory = totalPhysical * 3 / 5;
 						memoryLimit = Math.Min(usableMemory, recommendedPrivateByteLimit);
@@ -220,13 +210,16 @@ namespace System.Caching
 				for (var value in sref)
 					value.Dispose();
 
-				delete sref;
+				DeleteAndNullify!(sref);
 			}
 
 			IMemoryCacheManager memoryCacheManager = s_memoryCacheManager;
 
 			if (memoryCacheManager != null)
 				memoryCacheManager.ReleaseCache(_memoryCache);
+
+			DeleteAndNullify!(_cacheSizeSamples);
+			DeleteAndNullify!(_cacheSizeSampleTimes);
 		}
 
 		public static int64 EffectiveProcessMemoryLimit
@@ -300,18 +293,15 @@ namespace System.Caching
 			// never override what the user specifies as the limit; only call AutoPrivateBytesLimit when the user does
 			// not specify one.
 			if (cacheMemoryLimit == 0 && _memoryLimit == 0)
-			{
-				// Zero means we impose a limit
+			{ // Zero means we impose a limit
 				_memoryLimit = EffectiveProcessMemoryLimit;
 			}
 			else if (cacheMemoryLimit != 0 && _memoryLimit != 0)
-			{
-				// Take the min of "cache memory limit" and the host's "process memory limit".
+			{ // Take the min of "cache memory limit" and the host's "process memory limit".
 				_memoryLimit = Math.Min(_memoryLimit, cacheMemoryLimit);
 			}
 			else if (cacheMemoryLimit != 0)
-			{
-				// _memoryLimit is 0, but "cache memory limit" is non-zero, so use it as the limit
+			{ // _memoryLimit is 0, but "cache memory limit" is non-zero, so use it as the limit
 				_memoryLimit = cacheMemoryLimit;
 			}
 
@@ -347,8 +337,8 @@ namespace System.Caching
 	/// The limit is configurable (see ConfigUtil.cs).
 	sealed class PhysicalMemoryMonitor : MemoryMonitor
 	{
-		const int MIN_TOTAL_MEMORY_TRIM_PERCENT = 10;
-		static readonly int64 TARGET_TOTAL_MEMORY_TRIM_INTERVAL_TICKS = 5 * TimeSpan.TicksPerMinute;
+		private const int MIN_TOTAL_MEMORY_TRIM_PERCENT = 10;
+		private static readonly int64 TARGET_TOTAL_MEMORY_TRIM_INTERVAL_TICKS = 5 * TimeSpan.TicksPerMinute;
 
 		/// Returns the percentage of physical machine memory that can be consumed by an application
 		public int64 MemoryLimit
@@ -444,14 +434,12 @@ namespace System.Caching
 
 		protected override int GetCurrentPressure()
 		{
-			NativeMethods.MEMORYSTATUSEX memoryStatusEx = .();
-			memoryStatusEx.Init();
+			MEMORYSTATUSEX mStatEx = MEMORYSTATUSEX.Init();
 
-			if (NativeMethods.GlobalMemoryStatusEx(&memoryStatusEx) == 0)
+			if (NativeMethods.GlobalMemoryStatusEx(&mStatEx) == 0)
 				return 0;
 
-			int memoryLoad = memoryStatusEx.dwMemoryLoad;
-			return memoryLoad;
+			return mStatEx.dwMemoryLoad;
 		}
 
 		public override int GetPercentToTrim(DateTime lastTrimTime, int lastTrimPercent)

@@ -16,18 +16,18 @@ namespace System.Caching
 		private const int MAX_REMOVE = 1024;
 
 		private readonly MemoryCacheStore _cacheStore;
-		readonly UsageBucket[] _buckets;
+		private readonly UsageBucket[] _buckets ~ DeleteContainerAndItems!(_);
 		private int _inFlush;
 
 		public this(MemoryCacheStore cacheStore)
 		{
 			_cacheStore = cacheStore;
-			_buckets = new UsageBucket[1];
+			_buckets = new .[1];
 			uint8 b = 0;
 
 			while ((int)b < _buckets.Count)
 			{
-				_buckets[(int)b] = new UsageBucket(this, b);
+				_buckets[(int)b] = new .(this, b);
 				b += 1;
 			}
 		}
@@ -65,7 +65,7 @@ namespace System.Caching
 
 			if (Interlocked.Exchange(ref _inFlush, 1) == 0)
 			{
-				for (UsageBucket usageBucket in _buckets)
+				for (let usageBucket in _buckets)
 				{
 					int num2 = usageBucket.FlushUnderUsedItems(toFlush - num, false);
 					num += num2;
@@ -75,8 +75,7 @@ namespace System.Caching
 				}
 
 				if (num < toFlush)
-				{
-					for (UsageBucket usageBucket2 in _buckets)
+					for (let usageBucket2 in _buckets)
 					{
 						int num3 = usageBucket2.FlushUnderUsedItems(toFlush - num, true);
 						num += num3;
@@ -84,7 +83,6 @@ namespace System.Caching
 						if (num >= toFlush)
 							break;
 					}
-				}
 
 				Interlocked.Exchange(ref _inFlush, 0);
 			}

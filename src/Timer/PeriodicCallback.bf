@@ -1,3 +1,4 @@
+using System;
 using System.Diagnostics;
 using System.Threading;
 
@@ -10,9 +11,9 @@ namespace System.Caching.Timer
 		public const uint32 MAX_SUPPORTED_TIMEOUT = (uint32)0xfffffffeU;
 
 		private int _interval;
-		private PeriodicCallbackDelegate _callback = null;
+		private PeriodicCallbackDelegate _callback;
 		private Thread _thread = null;
-		private WaitEvent _cancelEvent = new WaitEvent(false);
+		private WaitEvent _cancelEvent = new .(false);
 
 		private this() { } // Hide parameterless .ctor
 
@@ -29,7 +30,7 @@ namespace System.Caching.Timer
 
 			_callback = callback;
 			_interval = (int)interval;
-			_thread = new Thread(new => ThreadExecute);
+			_thread = new .(new => ThreadExecute);
 			_thread.Start(false);
 		}
 
@@ -49,8 +50,9 @@ namespace System.Caching.Timer
 		{
 			_cancelEvent.Set(true);
 			_thread.Join();
-			delete _thread;
-			_thread = null;
+			DeleteAndNullify!(_thread);
+			DeleteAndNullify!(_callback);
+			DeleteAndNullify!(_cancelEvent);
 		}
 
 		/// Update the interval with which the callback is called, this resets the internal thread so you will
@@ -84,7 +86,7 @@ namespace System.Caching.Timer
 		/// Thread execute procedure
 		private void ThreadExecute()
 		{
-			Stopwatch sw = scope Stopwatch();
+			Stopwatch sw = scope .();
 			int lastProcTime = 0;
 			int adjustedInterval;
 
@@ -97,7 +99,7 @@ namespace System.Caching.Timer
 					adjustedInterval = 0;
 
 				if (_cancelEvent.WaitFor(adjustedInterval))
-					break; // Terminate thread when _cancelEvent is set
+					return; // Terminate thread when _cancelEvent is set
 
 				sw.Restart();
 				_callback(this);

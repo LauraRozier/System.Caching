@@ -9,11 +9,13 @@ namespace System.Caching
 {
 	sealed class CacheExpires
 	{
+		private const int NUMBUCKETS = 30;
+
 		public static readonly TimeSpan MIN_UPDATE_DELTA = TimeSpan(0, 0, 1);
 		public static readonly TimeSpan MIN_FLUSH_INTERVAL = TimeSpan(0, 0, 1);
 		public static readonly TimeSpan _tsPerBucket = TimeSpan(0, 0, 20);
-		private const int NUMBUCKETS = 30;
 		private static readonly TimeSpan s_tsPerCycle = TimeSpan(30L * _tsPerBucket.Ticks);
+
 		private readonly MemoryCacheStore _cacheStore;
 		private readonly ExpiresBucket[] _buckets = new .[30] ~ DeleteContainerAndItems!(_);
 		private PeriodicCallback _timer = null ~ if (_ != null) delete _;
@@ -51,7 +53,7 @@ namespace System.Caching
 				{
 					_utcLastFlush = utcNow;
 
-					for (ExpiresBucket expiresBucket in _buckets)
+					for (let expiresBucket in _buckets)
 						flushedCount += expiresBucket.FlushExpiredItems(utcNow, useInsertBlock);
 				}
 

@@ -37,10 +37,12 @@ namespace System.Caching
 
 	struct UsageEntryRef
 	{
-		public static readonly UsageEntryRef INVALID = UsageEntryRef(0, 0);
 		private const uint ENTRY_MASK = 255U;
 		private const uint PAGE_MASK = 4294967040U;
 		private const int PAGE_SHIFT = 8;
+
+		public static readonly UsageEntryRef INVALID = UsageEntryRef(0, 0);
+
 		private uint _ref;
 
 		public this(int pageIndex, int entryIndex)
@@ -101,7 +103,7 @@ namespace System.Caching
 
 		private CacheUsage _cacheUsage;
 		private uint8 _bucket;
-		private UsagePage[] _pages ~ DeletePageAndEntries!(_);
+		private UsagePage[] _pages ~ { DeletePageAndEntries!(_); _ = null; };
 		private int _cEntriesInUse;
 		private int _cPagesInUse;
 		private int _cEntriesInFlush;
@@ -112,9 +114,9 @@ namespace System.Caching
 		private UsageEntryRef _lastRefTail;
 		private UsageEntryRef _addRef2Head;
 		private bool _blockReduce;
-		private readonly Monitor _lock = new Monitor() ~ delete _;
+		private readonly Monitor _lock = new .() ~ DeleteAndNullify!(_);
 
-		mixin DeletePageAndEntries(var pages)
+		private mixin DeletePageAndEntries(var pages)
 		{
 			if (pages != null)
 			{
@@ -225,7 +227,7 @@ namespace System.Caching
 			if (entries[0].FreeCount == 0)
 				RemoveFromList(head, ref _freeEntryList);
 
-			return UsageEntryRef(head, ref1Index);
+			return .(head, ref1Index);
 		}
 
 		private void AddUsageEntryToFreeList(UsageEntryRef entryRef)
@@ -260,7 +262,7 @@ namespace System.Caching
 				int newPageCount = pageCount * 2;
 				newPageCount = Math.Max(pageCount + 10, newPageCount);
 				newPageCount = Math.Min(newPageCount, pageCount + 340);
-				UsagePage[] pages = new UsagePage[newPageCount];
+				UsagePage[] pages = new .[newPageCount];
 
 				for (int i = 0; i < pageCount; i++)
 					pages[i] = _pages[i];
@@ -284,11 +286,11 @@ namespace System.Caching
 			RemoveFromList(head, ref _freePageList);
 
 			AddToListHead(head, ref _freeEntryList);
-			UsageEntry[] entries = new UsageEntry[128];
+			UsageEntry[] entries = new .[128];
 			entries[0].FreeCount = 127;
 
 			for (int i = 0; i < entries.Count - 1; i++)
-				entries[i]._ref1.Next = UsageEntryRef(head, i + 1);
+				entries[i]._ref1.Next = .(head, i + 1);
 
 			entries[entries.Count - 1]._ref1.Next = UsageEntryRef.INVALID;
 			_pages[head].Entries = entries;
@@ -356,9 +358,9 @@ namespace System.Caching
 					if (entries[i].CacheEntry != null)
 					{
 						UsageEntryRef freeUsageEntry = GetFreeUsageEntry();
-						UsageEntryRef usageEntryRef = UsageEntryRef(freeUsageEntry.PageIndex, -freeUsageEntry.Ref1Index);
-						UsageEntryRef tailRef = UsageEntryRef(_freeEntryList.Tail, i);
-						UsageEntryRef negTailRef = UsageEntryRef(tailRef.PageIndex, -tailRef.Ref1Index);
+						UsageEntryRef usageEntryRef = .(freeUsageEntry.PageIndex, -freeUsageEntry.Ref1Index);
+						UsageEntryRef tailRef = .(_freeEntryList.Tail, i);
+						UsageEntryRef negTailRef = .(tailRef.PageIndex, -tailRef.Ref1Index);
 
 						entries[i].CacheEntry.UsageEntryReference = freeUsageEntry;
 						UsageEntry[] entries2 = _pages[freeUsageEntry.PageIndex].Entries;
@@ -447,7 +449,7 @@ namespace System.Caching
 					Expand();
 
 				UsageEntryRef freeUsageEntry = GetFreeUsageEntry();
-				UsageEntryRef usageEntryRef = UsageEntryRef(freeUsageEntry.PageIndex, -freeUsageEntry.Ref1Index);
+				UsageEntryRef usageEntryRef = .(freeUsageEntry.PageIndex, -freeUsageEntry.Ref1Index);
 				cacheEntry.UsageEntryReference = freeUsageEntry;
 				UsageEntry[] entries = _pages[freeUsageEntry.PageIndex].Entries;
 				int ref1Index = freeUsageEntry.Ref1Index;
@@ -563,7 +565,7 @@ namespace System.Caching
 
 			prev = entries[ref1Index]._ref2.Previous;
 			next = entries[ref1Index]._ref2.Next;
-			UsageEntryRef negRef = UsageEntryRef(entryRef.PageIndex, -entryRef.Ref1Index);
+			UsageEntryRef negRef = .(entryRef.PageIndex, -entryRef.Ref1Index);
 
 			if (prev.IsRef1)
 			{
@@ -624,7 +626,7 @@ namespace System.Caching
 				{
 					UsageEntry[] entries = _pages[usageEntryRef.PageIndex].Entries;
 					int ref1Index = usageEntryRef.Ref1Index;
-					UsageEntryRef usageEntryRef2 = UsageEntryRef(usageEntryRef.PageIndex, -usageEntryRef.Ref1Index);
+					UsageEntryRef usageEntryRef2 = .(usageEntryRef.PageIndex, -usageEntryRef.Ref1Index);
 					UsageEntryRef prev = entries[ref1Index]._ref2.Previous;
 					UsageEntryRef next = entries[ref1Index]._ref2.Next;
 
@@ -727,7 +729,7 @@ namespace System.Caching
 
 				mixin ProcessEntry(UsageEntry[] entries, int idx, UsageEntryRef prev)
 				{
-					UsageEntryRef usageEntryRef3 = UsageEntryRef(usageEntryRef2.PageIndex, usageEntryRef2.Ref2Index);
+					UsageEntryRef usageEntryRef3 = .(usageEntryRef2.PageIndex, usageEntryRef2.Ref2Index);
 					MemoryCacheEntry cacheEntry = entries[idx].CacheEntry;
 					cacheEntry.UsageEntryReference = UsageEntryRef.INVALID;
 					RemoveEntryFromLastRefList(usageEntryRef3);
@@ -779,7 +781,7 @@ namespace System.Caching
 				UsageEntryRef next = entries[ref1Idx]._ref1.Next;
 				MemoryCacheEntry cacheEntry = entries[ref1Idx].CacheEntry;
 				entries[ref1Idx].CacheEntry = null;
-				memoryCacheStore.Remove(cacheEntry.Key, cacheEntry, CacheEntryRemovedReason.Evicted);
+				memoryCacheStore.Remove(cacheEntry.Key, cacheEntry, .Evicted);
 				entryRef = next;
 			}
 
