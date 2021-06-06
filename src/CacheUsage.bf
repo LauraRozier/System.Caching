@@ -10,7 +10,7 @@ namespace System.Caching
 	{
 		public static readonly TimeSpan NEWADD_INTERVAL = TimeSpan(0, 0, 10);
 		public static readonly TimeSpan CORRELATED_REQUEST_TIMEOUT = TimeSpan(0, 0, 1);
-		public static readonly TimeSpan MIN_LIFETIME_FOR_USAGE = CacheUsage.NEWADD_INTERVAL;
+		public static readonly TimeSpan MIN_LIFETIME_FOR_USAGE = NEWADD_INTERVAL;
 
 		private const uint8 NUMBUCKETS = 1;
 		private const int MAX_REMOVE = 1024;
@@ -61,33 +61,33 @@ namespace System.Caching
 
 		public int FlushUnderUsedItems(int toFlush)
 		{
-			int num = 0;
+			int totalFlushed = 0;
 
 			if (Interlocked.Exchange(ref _inFlush, 1) == 0)
 			{
-				for (let usageBucket in _buckets)
+				for (let bucket in _buckets)
 				{
-					int num2 = usageBucket.FlushUnderUsedItems(toFlush - num, false);
-					num += num2;
+					int flushedCount = bucket.FlushUnderUsedItems(toFlush - totalFlushed, false);
+					totalFlushed += flushedCount;
 
-					if (num >= toFlush)
+					if (totalFlushed >= toFlush)
 						break;
 				}
 
-				if (num < toFlush)
-					for (let usageBucket2 in _buckets)
+				if (totalFlushed < toFlush)
+					for (let bucket in _buckets)
 					{
-						int num3 = usageBucket2.FlushUnderUsedItems(toFlush - num, true);
-						num += num3;
+						int flushedCount = bucket.FlushUnderUsedItems(toFlush - totalFlushed, true);
+						totalFlushed += flushedCount;
 
-						if (num >= toFlush)
+						if (totalFlushed >= toFlush)
 							break;
 					}
 
 				Interlocked.Exchange(ref _inFlush, 0);
 			}
 
-			return num;
+			return totalFlushed;
 		}
 	}
 }

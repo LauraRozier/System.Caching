@@ -2,7 +2,6 @@
 // of an open-sourcing initiative in 2014 of the C# core libraries.
 // The original source was submitted to https://github.com/Microsoft/referencesource
 
-using System.Caching.Timer;
 using System.Threading;
 
 namespace System.Caching
@@ -18,7 +17,7 @@ namespace System.Caching
 
 		private readonly MemoryCacheStore _cacheStore;
 		private readonly ExpiresBucket[] _buckets = new .[30] ~ DeleteContainerAndItems!(_);
-		private PeriodicCallback _timer = null ~ if (_ != null) delete _;
+		private PeriodicCallback _timer = null ~ if (_ != null) DeleteAndNullify!(_);
 		private DateTime _utcLastFlush;
 		private int _inFlush;
 

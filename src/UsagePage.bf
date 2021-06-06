@@ -4,21 +4,18 @@
 
 namespace System.Caching
 {
-	public class CacheItem
+	[Ordered]
+	struct UsagePage
 	{
-		public String Key { get; set; }
-		public Object Value { get; set; }
+		public UsageEntry[] Entries = null;
+		public int NextPage;
+		public int PreviousPage;
+	}
 
-		private this() { } // hide default constructor
-
-		public this(String key)
-		{
-			Key = key;
-		}
-
-		public this(String key, Object value) : this(key)
-		{
-			Value = value;
-		}
+	[Ordered]
+	struct UsagePageList
+	{
+		public int Head;
+		public int Tail;
 	}
 }

@@ -6,98 +6,6 @@ using System.Threading;
 
 namespace System.Caching
 {
-	public enum EntryState : uint8
-	{
-		NotInCache = 0,
-		AddingToCache = 1,
-		AddedToCache = 2,
-		RemovingFromCache = 4,
-		RemovedFromCache = 8,
-		Closed = 16
-	}
-
-	public struct ExistingEntry
-	{
-		public EntryState State = .NotInCache;
-		public Object Value = null;
-
-		public this(EntryState state, Object value)
-		{
-			State = state;
-			Value = value;
-		}
-	}
-
-	[Ordered]
-	struct ExpiresEntry
-	{
-		public _aUnion u;
-		public int _cFree;
-		public MemoryCacheEntry _cacheEntry;
-
-		[Union]
-		public struct _aUnion
-		{
-			public DateTime _utcExpires;
-			public ExpiresEntryRef _next;
-		}
-	}
-
-	struct ExpiresEntryRef
-	{
-		public static readonly ExpiresEntryRef INVALID = .(0, 0);
-
-		private const uint ENTRY_MASK = 255U;
-		private const uint PAGE_MASK = 4294967040U;
-		private const int PAGE_SHIFT = 8;
-		private uint _ref;
-
-		public this(int pageIndex, int entryIndex)
-		{
-			_ref = (uint)(pageIndex << 8 | (entryIndex & 255));
-		}
-
-		public bool Equals(Object value) =>
-			value is ExpiresEntryRef && _ref == ((ExpiresEntryRef)value)._ref;
-
-		public static bool operator!=(ExpiresEntryRef r1, ExpiresEntryRef r2) =>
-			r1._ref != r2._ref;
-
-		public static bool operator==(ExpiresEntryRef r1, ExpiresEntryRef r2) =>
-			r1._ref == r2._ref;
-
-		public int GetHashCode() =>
-			(int)_ref;
-
-		public int PageIndex
-		{
-			get { return (int)(_ref >> 8); }
-		}
-
-		public int Index
-		{
-			get { return (int)(_ref & 255U); }
-		}
-
-		public bool IsInvalid
-		{
-			get { return _ref == 0U; }
-		}
-	}
-
-	struct ExpiresPage
-	{
-		public ExpiresEntry[] _entries;
-		public int _pageNext;
-		public int _pagePrev;
-	}
-
-	struct ExpiresPageList
-	{
-		public int _head;
-		public int _tail;
-	}
-
 	sealed class ExpiresBucket
 	{
 		private const int NUM_ENTRIES = 127;
@@ -165,7 +73,7 @@ namespace System.Caching
 		}
 
 		private int GetCountIndex(DateTime utcExpires) =>
-			Math.Max(0, (int)((utcExpires - _utcLastCountReset).Ticks / ExpiresBucket.s_COUNT_INTERVAL.Ticks));
+			Math.Max(0, (int)((utcExpires - _utcLastCountReset).Ticks / s_COUNT_INTERVAL.Ticks));
 
 		private void AddCount(DateTime utcExpires)
 		{

@@ -4,21 +4,16 @@
 
 namespace System.Caching
 {
-	public class CacheItem
+	struct ExpiresPage
 	{
-		public String Key { get; set; }
-		public Object Value { get; set; }
+		public ExpiresEntry[] _entries;
+		public int _pageNext;
+		public int _pagePrev;
+	}
 
-		private this() { } // hide default constructor
-
-		public this(String key)
-		{
-			Key = key;
-		}
-
-		public this(String key, Object value) : this(key)
-		{
-			Value = value;
-		}
+	struct ExpiresPageList
+	{
+		public int _head;
+		public int _tail;
 	}
 }

@@ -2,14 +2,13 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 
-namespace System.Caching.Timer
+namespace System.Caching
 {
-	public delegate void PeriodicCallbackDelegate(PeriodicCallback state);
-
 	public sealed class PeriodicCallback : IDisposable
 	{
 		public const uint32 MAX_SUPPORTED_TIMEOUT = (uint32)0xfffffffeU;
 
+		private bool _disposed = false;
 		private int _interval;
 		private PeriodicCallbackDelegate _callback;
 		private Thread _thread = null;
@@ -17,13 +16,13 @@ namespace System.Caching.Timer
 
 		private this() { } // Hide parameterless .ctor
 
-		/// Creates a new instance of the PeriodicCallback with a default timeout of 1 second
+		/// Creates a new instance of the PeriodicCallback with a default timeout of 1 second, the delegate is owned by this object and will be deleted by it
 		public this(PeriodicCallbackDelegate callback) : this(callback, TimeSpan(0, 0, 1)) { }
 
-		/// Creates a new instance of the PeriodicCallback
+		/// Creates a new instance of the PeriodicCallback, the delegate is owned by this object and will be deleted by it
 		public this(PeriodicCallbackDelegate callback, int interval) : this(callback, (int64)interval) { }
 
-		/// Creates a new instance of the PeriodicCallback
+		/// Creates a new instance of the PeriodicCallback, the delegate is owned by this object and will be deleted by it
 		public this(PeriodicCallbackDelegate callback, int64 interval)
 		{
 			Runtime.Assert(callback != null && interval >= -1 && interval <= MAX_SUPPORTED_TIMEOUT);
@@ -34,15 +33,15 @@ namespace System.Caching.Timer
 			_thread.Start(false);
 		}
 
-		/// Creates a new instance of the PeriodicCallback
+		/// Creates a new instance of the PeriodicCallback, the delegate is owned by this object and will be deleted by it
 		public this(PeriodicCallbackDelegate callback, TimeSpan interval) : this(callback, (int64)interval.TotalMilliseconds) { }
 
-		/// Creates a new instance of the PeriodicCallback
+		/// Creates a new instance of the PeriodicCallback, the delegate is owned by this object and will be deleted by it
 		public this(PeriodicCallbackDelegate callback, uint32 interval) : this(callback, (int64)interval) { }
 
 		public ~this()
 		{
-			if (_thread != null)
+			if (!_disposed)
 				Dispose();
 		}
 
@@ -53,6 +52,7 @@ namespace System.Caching.Timer
 			DeleteAndNullify!(_thread);
 			DeleteAndNullify!(_callback);
 			DeleteAndNullify!(_cancelEvent);
+			_disposed = true;
 		}
 
 		/// Update the interval with which the callback is called, this resets the internal thread so you will

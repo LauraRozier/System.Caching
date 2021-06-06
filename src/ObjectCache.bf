@@ -8,19 +8,6 @@ using System.Threading;
 
 namespace System.Caching
 {
-	public enum DefaultCacheCapabilities
-	{
-		None = 0x0,
-		InMemoryProvider = 0x1,
-		OutOfProcessProvider = 0x2,
-		CacheEntryChangeMonitors = 0x4,
-		AbsoluteExpirations = 0x8,
-		SlidingExpirations = 0x10,
-		CacheEntryUpdateCallback = 0x20,
-		CacheEntryRemovedCallback = 0x40,
-		CacheRegions = 0x80
-	}
-
 	public abstract class ObjectCache : IEnumerable<(String key, ExistingEntry value)>
 	{
 		private static IServiceProvider _host;
@@ -45,18 +32,17 @@ namespace System.Caching
 
 		public abstract String Name { get; }
 
-		//Default indexer property
+		/// Default indexer property
 		public abstract ExistingEntry this[String key] { get; set; }
 
 		public abstract CacheEntryChangeMonitor CreateCacheEntryChangeMonitor(IEnumerator<String> keys);
 
 		public abstract IEnumerator<(String key, ExistingEntry value)> GetEnumerator();
 
-		//Existence check for a single item
+		/// Existence check for a single item
 		public abstract bool Contains(String key);
 
-		//The Add overloads are for adding an item without requiring the existing item to be returned.  This was
-		// requested for Velocity.
+		/// The Add overloads are for adding an item without requiring the existing item to be returned.  This was requested for Velocity.
 		public virtual bool Add(String key, Object value, DateTimeOffset absoluteExpiration, bool deleteValueIfExists) =>
 			AddOrGetExisting(key, value, absoluteExpiration, deleteValueIfExists) == default;
 
@@ -82,7 +68,7 @@ namespace System.Caching
 
 		public abstract void Set(String key, Object value, CacheItemPolicy policy);
 
-		//Get multiple items by keys
+		/// Get multiple items by keys
 		public abstract Dictionary<String, Object> GetValues(List<String> keys);
 
 		public virtual Dictionary<String, Object> GetValues(params String[] keys) =>

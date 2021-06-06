@@ -4,20 +4,14 @@
 
 namespace System.Caching
 {
-	public class CacheItem
+	public struct ExistingEntry
 	{
-		public String Key { get; set; }
-		public Object Value { get; set; }
+		public EntryState State = .NotInCache;
+		public Object Value = null;
 
-		private this() { } // hide default constructor
-
-		public this(String key)
+		public this(EntryState state, Object value)
 		{
-			Key = key;
-		}
-
-		public this(String key, Object value) : this(key)
-		{
+			State = state;
 			Value = value;
 		}
 	}
